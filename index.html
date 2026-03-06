@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Hugo G – TE23C</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0f;
+      --surface: #12121a;
+      --border: #1e1e2e;
+      --accent: #00e5ff;
+      --accent2: #7c3aed;
+      --text: #e8e8f0;
+      --muted: #5a5a7a;
+      --success: #00ffa3;
+      --warn: #ffb800;
+      --danger: #ff4d6d;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Syne', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Grid noise background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Glow blobs */
+    body::after {
+      content: '';
+      position: fixed;
+      top: -20%;
+      right: -10%;
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(124,58,237,0.12) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .glow-bottom {
+      position: fixed;
+      bottom: -20%;
+      left: -10%;
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, rgba(0,229,255,0.08) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      max-width: 780px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem 4rem;
+    }
+
+    /* HEADER */
+    header {
+      text-align: center;
+      padding: 3rem 0 2.5rem;
+      position: relative;
+    }
+
+    .header-tag {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--accent);
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      margin-bottom: 0.75rem;
+      opacity: 0.8;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 6vw, 3.5rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1;
+      background: linear-gradient(135deg, #fff 30%, var(--accent) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .subtitle {
+      margin-top: 0.75rem;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+    }
+
+    .header-line {
+      width: 80px;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      margin: 1.5rem auto 0;
+    }
+
+    /* STATUS BOX */
+    .status-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.4s ease;
+    }
+
+    .status-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      transition: opacity 0.4s ease;
+    }
+
+    .status-card.loading { border-color: var(--warn); }
+    .status-card.loading::before {
+      background: linear-gradient(135deg, rgba(255,184,0,0.04), transparent);
+      opacity: 1;
+    }
+
+    .status-card.ready { border-color: var(--success); }
+    .status-card.ready::before {
+      background: linear-gradient(135deg, rgba(0,255,163,0.05), transparent);
+      opacity: 1;
+    }
+
+    .status-card.error { border-color: var(--danger); }
+    .status-card.error::before {
+      background: linear-gradient(135deg, rgba(255,77,109,0.05), transparent);
+      opacity: 1;
+    }
+
+    .status-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--muted);
+      flex-shrink: 0;
+      transition: background 0.4s;
+      position: relative;
+    }
+
+    .status-card.loading .status-dot {
+      background: var(--warn);
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+    .status-card.ready .status-dot { background: var(--success); }
+    .status-card.error .status-dot { background: var(--danger); }
+
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(255,184,0,0.4); }
+      50% { box-shadow: 0 0 0 8px rgba(255,184,0,0); }
+    }
+
+    .status-info { flex: 1; }
+    .status-label {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.65rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.2rem;
+    }
+    .status-text {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .status-card.loading .status-text { color: var(--warn); }
+    .status-card.ready .status-text { color: var(--success); }
+    .status-card.error .status-text { color: var(--danger); }
+
+    .progress-bar-wrap {
+      height: 2px;
+      background: var(--border);
+      border-radius: 2px;
+      margin-top: 0.6rem;
+      overflow: hidden;
+    }
+
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent2), var(--accent));
+      border-radius: 2px;
+      transition: width 0.3s ease;
+    }
+
+    /* UPLOAD ZONE */
+    .upload-zone {
+      border: 2px dashed var(--border);
+      border-radius: 16px;
+      padding: 3rem 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      background: var(--surface);
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 1.5rem;
+    }
+
+    .upload-zone:hover, .upload-zone.dragover {
+      border-color: var(--accent);
+      background: rgba(0,229,255,0.03);
+    }
+
+    .upload-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    .upload-icon {
+      font-size: 2.5rem;
+      margin-bottom: 1rem;
+      display: block;
+      transition: transform 0.3s;
+    }
+    .upload-zone:hover .upload-icon { transform: translateY(-4px); }
+
+    .upload-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 0.4rem;
+    }
+    .upload-sub {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+    }
+
+    /* PREVIEW */
+    #preview-section {
+      display: none;
+      margin-bottom: 1.5rem;
+    }
+
+    .preview-grid {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 1.5rem;
+      align-items: start;
+    }
+
+    @media (max-width: 600px) {
+      .preview-grid { grid-template-columns: 1fr; }
+    }
+
+    .preview-img-wrap {
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      aspect-ratio: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #preview-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    /* RESULTS */
+    .results-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+    }
+
+    .results-title {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.65rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 1rem;
+    }
+
+    #result-list { list-style: none; }
+
+    .result-item {
+      margin-bottom: 0.85rem;
+      animation: fadeUp 0.4s ease both;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .result-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.35rem;
+    }
+
+    .result-name {
+      font-size: 0.88rem;
+      font-weight: 700;
+      text-transform: capitalize;
+    }
+
+    .result-pct {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.78rem;
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    .result-bar-bg {
+      height: 4px;
+      background: var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .result-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      background: linear-gradient(90deg, var(--accent2), var(--accent));
+      transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .result-item.top .result-name { color: var(--accent); }
+    .result-item.top .result-bar-fill {
+      background: linear-gradient(90deg, var(--success), var(--accent));
+    }
+
+    /* THINKING indicator */
+    #thinking {
+      display: none;
+      text-align: center;
+      padding: 2rem;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--accent);
+      letter-spacing: 0.15em;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 2px solid rgba(0,229,255,0.2);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 0.6rem;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* RESET BUTTON */
+    #reset-btn {
+      display: none;
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-family: 'Space Mono', monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      padding: 0.6rem 1.2rem;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-top: 1rem;
+      transition: all 0.2s;
+    }
+    #reset-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      margin-top: 3rem;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.65rem;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+    }
+  </style>
+</head>
+<body>
+  <div class="glow-bottom"></div>
+
+  <div class="container">
+    <header>
+      <div class="header-tag">Bildklassificering · TensorFlow.js</div>
+      <h1>Hugo G – TE23C</h1>
+      <p class="subtitle">MobileNetV2 · 5 klasser · 224 × 224 px</p>
+      <div class="header-line"></div>
+    </header>
+
+    <!-- STATUS CARD -->
+    <div class="status-card loading" id="status-card">
+      <div class="status-dot"></div>
+      <div class="status-info">
+        <div class="status-label">Modellstatus</div>
+        <div class="status-text" id="status-text">Laddar modell…</div>
+        <div class="progress-bar-wrap" id="progress-wrap">
+          <div class="progress-bar" id="progress-bar"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- UPLOAD ZONE -->
+    <div class="upload-zone" id="upload-zone">
+      <input type="file" id="file-input" accept="image/*" />
+      <span class="upload-icon">🖼️</span>
+      <div class="upload-title">Dra & släpp en bild här</div>
+      <div class="upload-sub">eller klicka för att välja · JPG, PNG, WEBP</div>
+    </div>
+
+    <!-- THINKING -->
+    <div id="thinking">
+      <span class="spinner"></span>ANALYSERAR BILD…
+    </div>
+
+    <!-- PREVIEW + RESULTS -->
+    <div id="preview-section">
+      <div class="preview-grid">
+        <div class="preview-img-wrap">
+          <img id="preview-img" src="" alt="Uppladdad bild" />
+        </div>
+        <div class="results-wrap">
+          <div class="results-title">Sannolikheter per klass</div>
+          <ul id="result-list"></ul>
+        </div>
+      </div>
+      <button id="reset-btn" onclick="resetUI()">← Analysera ny bild</button>
+    </div>
+
+    <footer>Hugo G · TE23C · TensorFlow.js Classifier</footer>
+  </div>
+
+  <script>
+    let model = null;
+    const CLASS_NAMES = ['Klass 1', 'Klass 2', 'Klass 3', 'Klass 4', 'Klass 5'];
+
+    // ── Load model ──────────────────────────────────────────────
+    async function loadModel() {
+      setStatus('loading', 'Laddar modell…');
+      animateProgress(0, 60, 1200);
+      try {
+        model = await tf.loadLayersModel('tfjs_model/model.json');
+        animateProgress(60, 100, 500);
+        setTimeout(() => {
+          setStatus('ready', 'Modell laddad och redo');
+          document.getElementById('progress-wrap').style.display = 'none';
+        }, 600);
+      } catch (e) {
+        setStatus('error', 'Fel: kunde inte ladda modell');
+        console.error(e);
+      }
+    }
+
+    function setStatus(state, msg) {
+      const card = document.getElementById('status-card');
+      const text = document.getElementById('status-text');
+      card.className = 'status-card ' + state;
+      text.textContent = msg;
+    }
+
+    function animateProgress(from, to, duration) {
+      const bar = document.getElementById('progress-bar');
+      const start = performance.now();
+      function step(now) {
+        const t = Math.min((now - start) / duration, 1);
+        bar.style.width = (from + (to - from) * t) + '%';
+        if (t < 1) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    }
+
+    // ── Upload handling ──────────────────────────────────────────
+    const fileInput  = document.getElementById('file-input');
+    const uploadZone = document.getElementById('upload-zone');
+
+    fileInput.addEventListener('change', e => handleFile(e.target.files[0]));
+
+    uploadZone.addEventListener('dragover', e => {
+      e.preventDefault();
+      uploadZone.classList.add('dragover');
+    });
+    uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+    uploadZone.addEventListener('drop', e => {
+      e.preventDefault();
+      uploadZone.classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith('image/')) handleFile(file);
+    });
+
+    function handleFile(file) {
+      if (!model) { alert('Modellen är inte laddad ännu. Vänta lite.'); return; }
+      if (!file)   return;
+
+      const reader = new FileReader();
+      reader.onload = async ev => {
+        const img = document.getElementById('preview-img');
+        img.src = ev.target.result;
+        img.onload = async () => {
+          uploadZone.style.display = 'none';
+          document.getElementById('thinking').style.display = 'block';
+          document.getElementById('preview-section').style.display = 'none';
+
+          await new Promise(r => setTimeout(r, 50)); // let browser paint
+          const probs = await classify(img);
+          renderResults(probs);
+
+          document.getElementById('thinking').style.display = 'none';
+          document.getElementById('preview-section').style.display = 'block';
+          document.getElementById('reset-btn').style.display = 'inline-block';
+        };
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // ── Classification ────────────────────────────────────────────
+    async function classify(imgEl) {
+      return tf.tidy(() => {
+        const tensor = tf.browser.fromPixels(imgEl)
+          .resizeBilinear([224, 224])
+          .toFloat()
+          .div(255.0)
+          .expandDims(0);
+        const output = model.predict(tensor);
+        return Array.from(output.dataSync());
+      });
+    }
+
+    // ── Render results ────────────────────────────────────────────
+    function renderResults(probs) {
+      const list = document.getElementById('result-list');
+      list.innerHTML = '';
+
+      const indexed = probs.map((p, i) => ({ name: CLASS_NAMES[i] || `Klass ${i+1}`, prob: p }));
+      indexed.sort((a, b) => b.prob - a.prob);
+
+      indexed.forEach((item, rank) => {
+        const pct = (item.prob * 100).toFixed(1);
+        const li = document.createElement('li');
+        li.className = 'result-item' + (rank === 0 ? ' top' : '');
+        li.style.animationDelay = (rank * 0.07) + 's';
+        li.innerHTML = `
+          <div class="result-row">
+            <span class="result-name">${item.name}</span>
+            <span class="result-pct">${pct}%</span>
+          </div>
+          <div class="result-bar-bg">
+            <div class="result-bar-fill" style="width:0%" data-target="${item.prob * 100}"></div>
+          </div>`;
+        list.appendChild(li);
+      });
+
+      // Animate bars after paint
+      requestAnimationFrame(() => {
+        document.querySelectorAll('.result-bar-fill').forEach(bar => {
+          const target = bar.dataset.target;
+          setTimeout(() => bar.style.width = target + '%', 50);
+        });
+      });
+    }
+
+    // ── Reset ──────────────────────────────────────────────────────
+    function resetUI() {
+      document.getElementById('preview-section').style.display = 'none';
+      document.getElementById('reset-btn').style.display = 'none';
+      document.getElementById('upload-zone').style.display = 'block';
+      document.getElementById('file-input').value = '';
+    }
+
+    loadModel();
+  </script>
+</body>
+</html>
