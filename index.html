@@ -477,6 +477,17 @@
 </div>
 
 <script>
+  // ── Register missing Keras augmentation layers as pass-throughs ─────────
+  // These layers only affect training, not inference — safe to stub out.
+  for (const layerName of ['RandomFlip', 'RandomRotation', 'RandomZoom']) {
+    class PassThrough extends tf.layers.Layer {
+      constructor(config) { super(config); }
+      call(inputs) { return Array.isArray(inputs) ? inputs[0] : inputs; }
+      static get className() { return layerName; }
+    }
+    tf.serialization.registerClass(PassThrough);
+  }
+
   // ── Default class names ──────────────────────────────────────────────────
   const NUM_CLASSES = 5;
   const classNames = Array.from({ length: NUM_CLASSES }, (_, i) => `Klass ${i + 1}`);
